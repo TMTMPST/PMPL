@@ -262,23 +262,31 @@ class KelolaPengguna extends Controller
 
     public function create(Request $request)
     {
-        $validatedData = $request->validate([
-            'role_id' => 'required',
-            'username' => 'required|string|min:3|unique:m_user,username',
-            'fullname' => 'required|string|min:3',
-            'password' => 'required',
-            'email' => 'required',
-            'no_telp' => 'required',
-        ]);
-        $validatedData['created_at'] = now();
-        $hashedPassword = Hash::make($request->password);
-        $validatedData['password'] = $hashedPassword;
-        $user = User::create($validatedData);
-        return response()->json([
-            'success' => true,
-            'message' => 'Data berhasil ditambahkan',
-            'data' => $user
-        ]);
+        try {
+            $validatedData = $request->validate([
+                'role_id' => 'required|exists:m_role,role_id',
+                'username' => 'required|string|min:3|unique:m_user,username',
+                'fullname' => 'required|string|min:3',
+                'password' => 'required|string|min:6',
+            ]);
+            
+            $validatedData['created_at'] = now();
+            $hashedPassword = Hash::make($request->password);
+            $validatedData['password'] = $hashedPassword;
+            
+            $user = User::create($validatedData);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Data berhasil ditambahkan',
+                'data' => $user
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], 422);
+        }
     }
 
     #[OA\Put(
@@ -323,13 +331,6 @@ class KelolaPengguna extends Controller
 
     public function update(Request $request)
     {
-        $validated = $request->validate([
-            'role_id' => 'required',
-            'username' => 'required',
-            'fullname' => 'required',
-            'email' => 'required',
-            'no_telp' => 'required',
-        ]);
         $user = User::find($request->id);
         if (!$user) {
             return response()->json([
@@ -337,13 +338,29 @@ class KelolaPengguna extends Controller
                 'message' => 'User not found'
             ], 404);
         }
-        $user->update($validated);
-        $user->save();
-        return response()->json([
-            'success' => true,
-            'message' => 'Data berhasil diubah',
-            'data' => $user
-        ]);
+
+        try {
+            $validated = $request->validate([
+                'role_id' => 'required|exists:m_role,role_id',
+                'username' => 'required|string|min:3|unique:m_user,username,' . $request->id . ',user_id',
+                'fullname' => 'required|string|min:3',
+            ]);
+            
+            $user->update($validated);
+            $user->updated_at = now();
+            $user->save();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Data berhasil diupdate',
+                'data' => $user
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], 422);
+        }
     }
 
     #[OA\Delete(
@@ -389,6 +406,16 @@ class KelolaPengguna extends Controller
                 'message' => 'User not found'
             ], 404);
         }
+
+        // Prevent deleting currently logged-in user
+        $currentUser = $request->user();
+        if ($currentUser && $currentUser->user_id == $request->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak dapat menghapus user yang sedang login'
+            ], 400);
+        }
+
         $user->delete();
         return response()->json([
             'success' => true,

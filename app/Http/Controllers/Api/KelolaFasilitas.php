@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\m_fasilitas as Fasilitas;
 use OpenApi\Attributes as OA;
@@ -238,16 +239,23 @@ class KelolaFasilitas extends Controller
 
     public function create(Request $request)
     {
-        $validatedData = $request->validate([
-            'fasilitas_nama' => 'required',
-        ]);
-        $validatedData['created_at'] = now();
-        $fasilitas = Fasilitas::create($validatedData);
-        return response()->json([
-            'success' => true,
-            'message' => 'Data berhasil ditambahkan',
-            'data' => $fasilitas
-        ]);
+        try {
+            $validatedData = $request->validate([
+                'fasilitas_nama' => 'required|unique:m_fasilitas,fasilitas_nama',
+            ]);
+            $validatedData['created_at'] = now();
+            $fasilitas = Fasilitas::create($validatedData);
+            return response()->json([
+                'success' => true,
+                'message' => 'Data berhasil ditambahkan',
+                'data' => $fasilitas
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], 422);
+        }
     }
 
     #[OA\Put(
@@ -292,9 +300,6 @@ class KelolaFasilitas extends Controller
 
     public function update(Request $request)
     {
-        $validated = $request->validate([
-            'fasilitas_nama' => 'required',
-        ]);
         $fasilitas = Fasilitas::find($request->id);
         if (!$fasilitas) {
             return response()->json([
@@ -302,13 +307,27 @@ class KelolaFasilitas extends Controller
                 'message' => 'Fasilitas not found'
             ], 404);
         }
-        $fasilitas->update($validated);
-        $fasilitas->save();
-        return response()->json([
-            'success' => true,
-            'message' => 'Data berhasil diubah',
-            'data' => $fasilitas
-        ]);
+
+        try {
+            $validated = $request->validate([
+                'fasilitas_nama' => 'required|unique:m_fasilitas,fasilitas_nama,' . $request->id . ',fasilitas_id',
+            ]);
+            
+            $fasilitas->update($validated);
+            $fasilitas->updated_at = now();
+            $fasilitas->save();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Data berhasil diupdate',
+                'data' => $fasilitas
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], 422);
+        }
     }
 
     #[OA\Delete(
@@ -354,6 +373,19 @@ class KelolaFasilitas extends Controller
                 'message' => 'Fasilitas not found'
             ], 404);
         }
+
+        // Check if fasilitas is being used in t_fasilitas_ruang
+        $isMapped = DB::table('t_fasilitas_ruang')
+            ->where('fasilitas_id', $request->id)
+            ->exists();
+
+        if ($isMapped) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fasilitas tidak dapat dihapus karena sudah digunakan pada ruangan'
+            ], 400);
+        }
+
         $fasilitas->delete();
         return response()->json([
             'success' => true,
