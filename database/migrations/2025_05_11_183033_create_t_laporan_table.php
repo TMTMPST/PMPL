@@ -14,10 +14,13 @@ return new class extends Migration
         Schema::create('t_laporan', function (Blueprint $table) {
             $table->id('laporan_id');
             $table->foreignId('user_id')->references('user_id')->on('m_user');
-            $table->foreignId('fasilitas_ruang_id')->references('fasilitas_ruang_id')->on('t_fasilitas_ruang');
+            // `t_fasilitas_ruang`.`fasilitas_ruang_id` is defined as string (primary key)
+            // so use a string column here and add an explicit foreign key to match types.
+            $table->string('fasilitas_ruang_id');
+            $table->foreign('fasilitas_ruang_id')->references('fasilitas_ruang_id')->on('t_fasilitas_ruang');
             $table->foreignId('teknisi_id')->references('user_id')->on('m_user')->nullable();
             $table->text('deskripsi_laporan')->nullable();
-            $table->longBinary('lapor_foto')->nullable();
+            $table->longText('lapor_foto')->nullable();
             $table->datetime('lapor_datetime');
             $table->integer('review_pelapor')->nullable();
             $table->text('review_komentar')->nullable();
