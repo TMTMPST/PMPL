@@ -50,6 +50,9 @@ jobs:
       - name: Generate application key
         run: php artisan key:generate
 
+      - name: Generate JWT secret
+        run: php artisan jwt:secret --force
+
       - name: Run database migrations
         run: php artisan migrate --force
 
@@ -59,17 +62,39 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Build assets
+        run: npm run build
+
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
       - name: Start Laravel server
-        run: php artisan serve &
+        run: nohup php artisan serve > /dev/null 2>&1 &
         env:
-          APP_ENV: testing
+          APP_ENV: local
+          APP_DEBUG: true
 
       - name: Wait for Laravel server
         run: |
-          timeout 30 bash -c 'until curl -f http://localhost:8000; do sleep 1; done'
+          echo "Waiting for Laravel server to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8000 2>/dev/null; then
+              echo "Server is ready!"
+              exit 0
+            fi
+            echo "Attempt $i: Server not ready yet..."
+            sleep 2
+          done
+          echo "Server failed to start"
+          exit 1
+
+      - name: Check Laravel logs on failure
+        if: failure()
+        run: |
+          echo "=== Laravel Storage Logs ==="
+          cat storage/logs/laravel.log || echo "No log file found"
+          echo "=== Server Process ==="
+          ps aux | grep artisan || echo "No artisan process found"
 
       - name: Run Playwright tests
         run: npx playwright test
