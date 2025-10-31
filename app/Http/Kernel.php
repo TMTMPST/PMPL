@@ -46,6 +46,25 @@ class Kernel extends HttpKernel
     ];
 
     /**
+     * Get the route middleware groups.
+     *
+     * @return array
+     */
+    public function getMiddlewareGroups()
+    {
+        $groups = $this->middlewareGroups;
+        
+        // Remove rate limiting for testing environment
+        if (env('RATE_LIMIT_ENABLED', true) === false) {
+            $groups['api'] = array_filter($groups['api'], function ($middleware) {
+                return !str_contains($middleware, 'ThrottleRequests');
+            });
+        }
+        
+        return $groups;
+    }
+
+    /**
      * The application's middleware aliases.
      *
      * Aliases may be used instead of class names to conveniently assign middleware to routes and groups.

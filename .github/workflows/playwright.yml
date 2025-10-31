@@ -43,6 +43,9 @@ jobs:
           sed -i 's/DB_DATABASE=.*/DB_DATABASE=testing/' .env
           sed -i 's/DB_USERNAME=.*/DB_USERNAME=root/' .env
           sed -i 's/DB_PASSWORD=.*/DB_PASSWORD=password/' .env
+          echo "" >> .env
+          echo "# Disable rate limiting for testing" >> .env
+          echo "RATE_LIMIT_ENABLED=false" >> .env
 
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
